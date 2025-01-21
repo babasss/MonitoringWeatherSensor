@@ -63,6 +63,11 @@ int zoneDessin_width = 430;
 int zoneDessin_height = 240;
 int zoneDessin_epaisseur = 2;
 
+#define MAX_LENGTH 500  // Taille maximale par chaîne
+RTC_DATA_ATTR char rtc_date[MAX_LENGTH + 1] = "";
+RTC_DATA_ATTR char rtc_saintDuJour[MAX_LENGTH + 1] = "";
+RTC_DATA_ATTR char rtc_birthday[MAX_LENGTH + 1] = "";
+
 void setup() {
   // put your setup code here, to run once:
   delay(2000);  //Take some time to open up the Serial Monitor
@@ -110,17 +115,25 @@ void boucle() {
   if (StartWiFi() == WL_CONNECTED) {
     Serial.println("> Wifi connected");
 
-    tryRefresh("Nominis", nominis, &Nominis::refresh);
     tryRefresh("DateWeb", dateweb, &DateWeb::refresh);
     tryRefresh("Weather", weather, &Weather::refresh);
     tryRefresh("Domoticz", domoticz, &Domoticz::refresh);
     tryRefresh("Air Pollution", airPollution, &AirPollution::refresh);
-    tryRefresh("Birthday", birthday, &Birthday::refresh);
+
+    if (!strcmp(rtc_date, dateweb.get_dateCalendar()) == 0) 
+    {
+      tryRefresh("Nominis", nominis, &Nominis::refresh);
+      tryRefresh("Birthday", birthday, &Birthday::refresh);
+
+      //const char* saintDuJour = nominis.get_saintDuJour();
+      //const char* birthdayItem = birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar());
+
+      snprintf(rtc_date, MAX_LENGTH, dateweb.get_dateCalendar());
+      snprintf(rtc_saintDuJour, MAX_LENGTH, nominis.get_saintDuJour());
+      snprintf(rtc_birthday, MAX_LENGTH, birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar()));
+    }
 
     StopWiFi();
-
-    //String birthdays2 = birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar());
-    //Serial.println("Anniversaires du jour : " + birthdays2);
     
     display.firstPage();
     do {
@@ -138,15 +151,15 @@ void boucle() {
       // Saint du jour
       currentLine = currentLine + 22; //lineHeight9
       u8g2Fonts.setFont(u8g2_font_helvB12_tf);
-      int sDJw = u8g2Fonts.getUTF8Width(nominis.get_saintDuJour());
+      int sDJw = u8g2Fonts.getUTF8Width(rtc_saintDuJour);
       u8g2Fonts.setCursor(WeatherIconSize + (currentSpace - sDJw) / 2, currentLine);
-      u8g2Fonts.print(nominis.get_saintDuJour());
+      u8g2Fonts.print(rtc_saintDuJour);
       
       // Anniversaire
       currentLine = currentLine + 22; //lineHeight9
-      int sBIw = u8g2Fonts.getUTF8Width(birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar()));
+      int sBIw = u8g2Fonts.getUTF8Width(rtc_birthday);
       u8g2Fonts.setCursor(WeatherIconSize + (currentSpace - sBIw) / 2, currentLine);
-      u8g2Fonts.print(birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar()));
+      u8g2Fonts.print(rtc_birthday);
       
       currentLine = currentLine + 10;
       display.fillRect(WeatherIconSize + 250, currentLine, zoneDessin_epaisseur, 75, GxEPD_BLACK); // séparation température
