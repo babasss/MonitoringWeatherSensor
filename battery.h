@@ -34,11 +34,11 @@ const char* battery_level() {
   */
 
   /* Nouvelle équation tirée d'une déchage classique de LiPo avec régression polynomiale à 7 niveaux */
-  float batteryPercentagePin = -186.40*pow(voltagePin,7)+3646.70*pow(voltagePin,6)-26889.55*pow(voltagePin,5)+79856.54*pow(voltagePin,4)+27320.35*pow(voltagePin,3)-779854.34*pow(voltagePin,2)+1841903.14*pow(voltagePin,1)-1429703.42;
+  float batteryPercentagePin = -186.396348951606*pow(voltagePin,7)+3646.70044633217*pow(voltagePin,6)-26889.5529074022*pow(voltagePin,5)+79856.542204405*pow(voltagePin,4)+27320.3505157116*pow(voltagePin,3)-779854.340256534*pow(voltagePin,2)+1841903.14340668*voltagePin-1429703.41983678;
 
-  batteryPercentage = constrain(batteryPercentage * 100, 0, 100); // Constrain percentage to be between 0 and 100
+  //batteryPercentage = constrain(batteryPercentage * 100, 0, 100); // Constrain percentage to be between 0 and 100
 
-  batteryPercentagePin = constrain(batteryPercentagePin * 100, 0, 100); // Constrain percentage to be between 0 and 100
+  batteryPercentagePin = constrain(batteryPercentagePin, 0, 100); // Constrain percentage to be between 0 and 100
  
   //Serial.println((String)"Raw method 1:" + rawValue + " Voltage:" + voltageLevel + "V Percent: " + (batteryFraction * 100) + "%");
   //Serial.println((String)"Raw method 2:" + rawValue + " Voltage:" + voltage + "V Percent: " + batteryPercentage + "%");

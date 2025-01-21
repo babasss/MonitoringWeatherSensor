@@ -11,7 +11,7 @@ public:
         jsonResponseForecast = new DynamicJsonDocument(2048); // Initialiser jsonResponse dans le constructeur
     }
 
-    void refresh() {
+    bool refresh() {
         int responseCodeCurrent;
         int responseCodeForecast;
         String responseStringCurrent;
@@ -24,6 +24,8 @@ public:
         if (responseCodeCurrent > 0) {
             deserializeJson(*jsonResponseCurrent, responseStringCurrent); // Dereference le pointeur ici
             (*jsonResponseCurrent).shrinkToFit();
+        } else {
+          return false;
         }
 
         // Construire l'URL de la requête
@@ -37,6 +39,11 @@ public:
             (*jsonResponseForecast).shrinkToFit();
             //jsonResponseForecast = (*jsonResponseForecast)["list"];
         }
+        else {
+          return false;
+        }
+
+        return true;
     }
 
     const char* get_sunrise(int offset = 0) {

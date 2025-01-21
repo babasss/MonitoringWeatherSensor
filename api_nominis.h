@@ -1,13 +1,13 @@
 class Nominis {
 public:
-    String saintdujour;
-    DynamicJsonDocument* jsonResponse;
+    //String saintdujour;
+    DynamicJsonDocument* jsonNominis;
 
     Nominis() {
-        jsonResponse = new DynamicJsonDocument(512); // Initialiser jsonResponse dans le constructeur
+        jsonNominis = new DynamicJsonDocument(512); // Initialiser jsonResponse dans le constructeur
     }
 
-    void refresh() {
+    bool refresh() {
         int responseCode;
         String responseString;
         
@@ -16,13 +16,17 @@ public:
         if (responseCode > 0) {
             StaticJsonDocument<200> filter;
             filter["response"]["saintdujour"]["nom"] = true;
-            deserializeJson(*jsonResponse, responseString); // Dereference le pointeur ici
-            (*jsonResponse).shrinkToFit();
+            deserializeJson(*jsonNominis, responseString); // Dereference le pointeur ici
+            (*jsonNominis).shrinkToFit();
+            return true;
+        } else {
+          return false;
         }
+        
     }
 
     const char* get_saintDuJour() {
-        const char* buffer = (*jsonResponse)["response"]["saintdujour"]["nom"];
+        const char* buffer = (*jsonNominis)["response"]["saintdujour"]["nom"];
         return buffer;
     }
 };

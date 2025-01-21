@@ -8,7 +8,7 @@ public:
         //jsonResponse = new DynamicJsonDocument(2048); // Initialiser jsonResponse dans le constructeur
     }
 
-    void refresh() {
+    bool refresh() {
         int responseCode;
         String responseString;
         char header[100];
@@ -49,6 +49,9 @@ public:
             }
             
             //serializeJson(*jsonSensor, Serial);
+            return true;
+        } else {
+          return false;
         }
     }
 

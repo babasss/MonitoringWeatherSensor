@@ -38,3 +38,27 @@ void print_wakeup_reason() {
     default:                        Serial.printf("#REVEIL : Wakeup was not caused by deep sleep: %d\n", wakeup_reason); break;
   }
 }
+
+template <typename T>
+bool tryRefresh(const String& name, T& obj, bool (T::*refreshFunc)()) {
+//bool tryRefresh(String name, bool (*refreshFunc)()) {
+    for (int attempt = 1; attempt <= maxRetries; attempt++) {
+        if ((obj.*refreshFunc)()) {
+            Serial.print("> ");
+            Serial.print(name);
+            Serial.println(" : Données rafraîchies avec succès !");
+            return true;
+        } else {
+            Serial.print("> ");
+            Serial.print(name);
+            Serial.print(" : Tentative ");
+            Serial.print(attempt);
+            Serial.println(" échouée, nouvel essai...");
+        }
+        delay(retryPause); // Pause de 5s entre chaque tentative
+    }
+    Serial.print("> ");
+    Serial.print(name);
+    Serial.println(" : Échec du rafraîchissement des données après 5 tentatives.");
+    return false;
+}

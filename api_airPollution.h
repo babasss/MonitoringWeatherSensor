@@ -8,7 +8,7 @@ public:
         jsonCalculatedAirPollutionForecast = new DynamicJsonDocument(1024); // Initialiser jsonResponse dans le constructeur
     }
 
-    void refresh() {
+    bool refresh() {
         int responseAirPollutionCodeCurrent;
         String responseAirPollutionStringCurrent;
         char url_airPollution[256];
@@ -20,18 +20,20 @@ public:
             //Serial.println(responseStringCurrent);
             deserializeJson(*jsonResponseAirPollutionCurrent, responseAirPollutionStringCurrent); // Dereference le pointeur ici
             (*jsonResponseAirPollutionCurrent).shrinkToFit();
+            //return true;
+        } else {
+          return false;
         }
         
         
         // Construire l'URL de la requête
-        
+        Serial.println(">>>> Début Airpollution Forecast");
         int responseAirPollutionCodeForecast;
         String responseAirPollutionStringForecast;
         DynamicJsonDocument jsonResponseAirPollutionForecast(1024);
         snprintf(url_airPollution, sizeof(url_airPollution), "%s/data/2.5/air_pollution/forecast?appid=%s&lat=%s&lon=%s&lang=%s&units=%s&mode=json", weather_url, weather_apikey, weather_lat, weather_long, weather_lang, weather_unit);
         http_request(url_airPollution, responseAirPollutionCodeForecast, responseAirPollutionStringForecast);
         if (responseAirPollutionCodeForecast > 0) {
-            //Serial.println(responseStringForecast);
             StaticJsonDocument<200> filter;
             filter["list"][0]["dt"] = true; 
             filter["list"][0]["main"]["aqi"] = true;
@@ -45,9 +47,13 @@ public:
               JsonObject analyse = (*jsonCalculatedAirPollutionForecast).createNestedObject(dtAnalyse);
               analyse["aqi"] = resultArray[t]["main"]["aqi"];
             }
-            //serializeJson(jsonResponseAirPollutionForecast, Serial);
-            //serializeJson(*jsonCalculatedAirPollutionForecast, Serial);
+            //deserializeJson(*jsonResponseAirPollutionForecast, responseAirPollutionCodeForecast); // Dereference le pointeur ici
+            //(*jsonResponseAirPollutionForecast).shrinkToFit();
+        } else {
+          return false;
         }
+
+        return true;
     }
 
     int get_airPollution(const char* element = "current", int dt = 0) {

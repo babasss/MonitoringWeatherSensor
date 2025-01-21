@@ -6,24 +6,24 @@ Reste à faire :
  - 
 */
 
-
 #include "config.h"  // See 'owm_credentials' tab and enter your OWM API key and set the Wifi SSID and PASSWORD
 #include <Arduino.h>
 #include <ArduinoJson.h>
 
 #include "wifi_connect.h"
 #include "functions.h"
-#include "date.h"
 #include "battery.h"
 
+#include "api_date.h"
 #include "api_nominis.h"
 #include "api_weather.h"
 #include "api_domoticz.h"
 #include "api_airPollution.h"
+#include "api_birthday.h"
 
 //// Init WAKEUP
 #define uS_TO_S_FACTOR 1000000ULL /* Conversion factor for micro seconds to seconds */
-#define TIME_TO_SLEEP  1800          /* Time ESP32 will go to sleep (in seconds) */
+#define TIME_TO_SLEEP  time_to_sleep /* Time ESP32 will go to sleep (in seconds) */
 
 /////// Initialisation epaper ////////
 // Author: Jean-Marc Zingg
@@ -34,8 +34,8 @@ Reste à faire :
 #include "Fonts/MonitoringWeatherIcon18pt7b.h"
 #include "additions/U8G2_FONTS_GFX.h"
 
+// Initialisation de l'écran
 GxEPD2_BW<GxEPD2_750_T7, GxEPD2_750_T7::HEIGHT> display(GxEPD2_750_T7(/*CS=5*/ 0, /*DC=*/22, /*RST=*/21, /*BUSY=*/13));  // GDEW075T7 800x480, EK79655 (GD7965)
-
 U8G2_FONTS_GFX u8g2Fonts(display);
 
 // Définition des classes
@@ -44,6 +44,7 @@ DateWeb dateweb;
 Weather weather;
 Domoticz domoticz;
 AirPollution airPollution;
+Birthday birthday;
 
 // Déclaration des variables
 int display_width;
@@ -53,9 +54,6 @@ int currentSpace;
 int screenWidth = 480;
 int screenHeight = 800;
 int WeatherIconSize = 150;
-
-int lineHeight9 = 15;
-int lineHeight18 = 30;
 
 int TableauHaut = 170;
 
@@ -112,57 +110,51 @@ void boucle() {
   if (StartWiFi() == WL_CONNECTED) {
     Serial.println("> Wifi connected");
 
-    Serial.println("> Refresh Nominis");
-    nominis.refresh();
-    Serial.println("> Refresh Date");
-    dateweb.refresh();
-    Serial.println("> Refresh Weather");
-    weather.refresh();
-    Serial.println("> Refresh Domoticz");
-    domoticz.refresh();
-    Serial.println("> Refresh airPollution");
-    airPollution.refresh();
+    tryRefresh("Nominis", nominis, &Nominis::refresh);
+    tryRefresh("DateWeb", dateweb, &DateWeb::refresh);
+    tryRefresh("Weather", weather, &Weather::refresh);
+    tryRefresh("Domoticz", domoticz, &Domoticz::refresh);
+    tryRefresh("Air Pollution", airPollution, &AirPollution::refresh);
+    tryRefresh("Birthday", birthday, &Birthday::refresh);
 
     StopWiFi();
 
+    //String birthdays2 = birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar());
+    //Serial.println("Anniversaires du jour : " + birthdays2);
+    
     display.firstPage();
     do {
       // Calcul de tout ce qui va s'écrir en 18pt
 
       Serial.println("> Header");
       // Date en lettre
-      /*int16_t dJLx, dJLy;
-      uint16_t dJLw, dJLh;
-      //display.setFont(&Swansea_q3pd16pt7b);
-      //display.getTextBounds(dateweb.get_dateJourLettre(), 0, 0, &dJLx, &dJLy, &dJLw, &dJLh);
-      //int lineHeight18 = dJLh;
-      //Serial.println("dJLx: " + String(dJLx) + ", dJLy: " + String(dJLy) + ", dJLw: " + String(dJLw) + ", dJLh: " + String(dJLh));
-      currentLine = lineHeight18;
-      display.setCursor(WeatherIconSize + (currentSpace - dJLw) / 2 - dJLx, currentLine);
-      display.print(dateweb.get_dateJourLettre());
-      currentLine = currentLine + dJLh;*/
       u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+
+      currentLine = currentLine + 25;
       int dJLw = u8g2Fonts.getUTF8Width(dateweb.get_dateJourLettre());
-      currentLine = currentLine + lineHeight18;
       u8g2Fonts.setCursor(WeatherIconSize + (currentSpace - dJLw) / 2, currentLine);
       u8g2Fonts.print(dateweb.get_dateJourLettre());
-      currentLine = currentLine + 16;
 
-      // Calcul de tout ce qui va s'écrir en 9pt
       // Saint du jour
-      u8g2Fonts.setFont(u8g2_font_helvB10_tf);
+      currentLine = currentLine + 22; //lineHeight9
+      u8g2Fonts.setFont(u8g2_font_helvB12_tf);
       int sDJw = u8g2Fonts.getUTF8Width(nominis.get_saintDuJour());
-      currentLine = currentLine + lineHeight9;
       u8g2Fonts.setCursor(WeatherIconSize + (currentSpace - sDJw) / 2, currentLine);
       u8g2Fonts.print(nominis.get_saintDuJour());
-      currentLine = currentLine + 20;
-
+      
+      // Anniversaire
+      currentLine = currentLine + 22; //lineHeight9
+      int sBIw = u8g2Fonts.getUTF8Width(birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar()));
+      u8g2Fonts.setCursor(WeatherIconSize + (currentSpace - sBIw) / 2, currentLine);
+      u8g2Fonts.print(birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar()));
+      
+      currentLine = currentLine + 10;
       display.fillRect(WeatherIconSize + 250, currentLine, zoneDessin_epaisseur, 75, GxEPD_BLACK); // séparation température
 
       // Température
       u8g2Fonts.setFont(u8g2_font_helvB18_tf); 
+      currentLine = currentLine + 25; //lineHeight9
       int tCw = u8g2Fonts.getUTF8Width(weather.get_temperatureAll());
-      currentLine = currentLine + lineHeight9;
       u8g2Fonts.setCursor(WeatherIconSize + 50, currentLine);
       u8g2Fonts.print(weather.get_temperatureAll());
 
@@ -170,8 +162,8 @@ void boucle() {
       u8g2Fonts.setCursor(WeatherIconSize + 260, currentLine);
       u8g2Fonts.print(weather.get_windSpeed());
            
-      //Autre information : humidité - pression - vent
-      currentLine = currentLine + 30; 
+      //Autre information : humidité - pression
+      currentLine = currentLine + 25; 
       u8g2Fonts.setCursor(WeatherIconSize + 80, currentLine);
       u8g2Fonts.print(weather.get_humidity());
 
@@ -203,6 +195,20 @@ void boucle() {
       int rFleche = 15;
       display.drawLine(xFleche, yFleche, xFleche + rFleche*cos(5*PI/6 + angleRadians), yFleche - rFleche*sin(5*PI/6 + angleRadians), GxEPD_BLACK);
       display.drawLine(xFleche, yFleche, xFleche + rFleche*cos(7*PI/6 + angleRadians), yFleche - rFleche*sin(7*PI/6 + angleRadians), GxEPD_BLACK);
+      if(cos(5*PI/6 + angleRadians) < 0.5) { 
+        display.drawLine(xFleche - 1, yFleche, xFleche - 1 + rFleche*cos(5*PI/6 + angleRadians), yFleche - rFleche*sin(5*PI/6 + angleRadians), GxEPD_BLACK);
+        display.drawLine(xFleche + 1, yFleche, xFleche + 1 + rFleche*cos(5*PI/6 + angleRadians), yFleche - rFleche*sin(5*PI/6 + angleRadians), GxEPD_BLACK);
+      } else {
+        display.drawLine(xFleche, yFleche - 1, xFleche + rFleche*cos(5*PI/6 + angleRadians), yFleche - 1 - rFleche*sin(5*PI/6 + angleRadians), GxEPD_BLACK);
+        display.drawLine(xFleche, yFleche + 1, xFleche + rFleche*cos(5*PI/6 + angleRadians), yFleche + 1 - rFleche*sin(5*PI/6 + angleRadians), GxEPD_BLACK);
+      }
+      if(cos(7*PI/6 + angleRadians) < 0.5) { 
+        display.drawLine(xFleche - 1, yFleche, xFleche - 1 + rFleche*cos(7*PI/6 + angleRadians), yFleche - rFleche*sin(7*PI/6 + angleRadians), GxEPD_BLACK);
+        display.drawLine(xFleche + 1, yFleche, xFleche + 1 + rFleche*cos(7*PI/6 + angleRadians), yFleche - rFleche*sin(7*PI/6 + angleRadians), GxEPD_BLACK);
+      } else {
+        display.drawLine(xFleche, yFleche - 1, xFleche + rFleche*cos(7*PI/6 + angleRadians), yFleche - 1 - rFleche*sin(7*PI/6 + angleRadians), GxEPD_BLACK);
+        display.drawLine(xFleche, yFleche + 1, xFleche + rFleche*cos(7*PI/6 + angleRadians), yFleche + 1 - rFleche*sin(7*PI/6 + angleRadians), GxEPD_BLACK);
+      }
       /*if(cos(-angleRadians + 4*PI/3) < 0.5) { 
         display.drawLine(xFleche + 1, yFleche, xFleche + 1 + rFleche*cos(-angleRadians + 4*PI/3), yFleche - rFleche*sin(-angleRadians + 4*PI/3), GxEPD_BLACK);
         display.drawLine(xFleche - 1, yFleche, xFleche - 1 + rFleche*cos(-angleRadians + 4*PI/3), yFleche - rFleche*sin(-angleRadians + 4*PI/3), GxEPD_BLACK);
@@ -216,7 +222,7 @@ void boucle() {
       //u8g2Fonts.print(weather.get_windDirection());
 
       //Sunrise - Sunset
-      currentLine = currentLine + 30; 
+      currentLine = currentLine + 25; 
       u8g2Fonts.setFont(u8g2_font_helvB10_tf);
       u8g2Fonts.setCursor(WeatherIconSize + 70, currentLine);
       u8g2Fonts.print(weather.get_sunrise(dateweb.offset));
