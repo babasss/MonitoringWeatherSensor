@@ -63,6 +63,9 @@ int zoneDessin_width = 430;
 int zoneDessin_height = 240;
 int zoneDessin_epaisseur = 2;
 
+int status = 0;
+int real_time_to_sleep = TIME_TO_SLEEP;
+
 #define MAX_LENGTH 500  // Taille maximale par chaîne
 RTC_DATA_ATTR char rtc_date[MAX_LENGTH + 1] = "";
 RTC_DATA_ATTR char rtc_saintDuJour[MAX_LENGTH + 1] = "";
@@ -101,8 +104,17 @@ void setup() {
 
   boucle();
 
-  Serial.print("\r\n#DEEP SLEEP for : "); Serial.print(TIME_TO_SLEEP/60); Serial.println(" minutes");
-  esp_deep_sleep(TIME_TO_SLEEP * uS_TO_S_FACTOR);
+  if ( status > 0 )
+  {
+    real_time_to_sleep = 300;
+  }
+  else 
+  {
+    real_time_to_sleep = TIME_TO_SLEEP;
+  }
+
+  Serial.print("\r\n#DEEP SLEEP for : "); Serial.print(real_time_to_sleep/60); Serial.println(" minutes");
+  esp_deep_sleep(real_time_to_sleep * uS_TO_S_FACTOR);
 }
 
 void boucle() {
@@ -110,31 +122,88 @@ void boucle() {
 
   int currentLine = 0;
 
+  int statusWifi = 0;
+  int refreshDateWeb = 0;
+  int refreshWeather = 0;
+  int refreshDomoticz = 0;
+  int refreshNominis = 0;
+  int refreshBirthday = 0;
+
+  status = 0;
+
   Serial.println("#DEBUT BOUCLE");
 
-  if (StartWiFi() == WL_CONNECTED) {
-    Serial.println("> Wifi connected");
-
-    tryRefresh("DateWeb", dateweb, &DateWeb::refresh);
-    tryRefresh("Weather", weather, &Weather::refresh);
-    tryRefresh("Domoticz", domoticz, &Domoticz::refresh);
-    tryRefresh("Air Pollution", airPollution, &AirPollution::refresh);
-
-    if (!strcmp(rtc_date, dateweb.get_dateCalendar()) == 0) 
-    {
-      tryRefresh("Nominis", nominis, &Nominis::refresh);
-      tryRefresh("Birthday", birthday, &Birthday::refresh);
-
-      //const char* saintDuJour = nominis.get_saintDuJour();
-      //const char* birthdayItem = birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar());
-
-      snprintf(rtc_date, MAX_LENGTH, dateweb.get_dateCalendar());
-      snprintf(rtc_saintDuJour, MAX_LENGTH, nominis.get_saintDuJour());
-      snprintf(rtc_birthday, MAX_LENGTH, birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar()));
-    }
-
-    StopWiFi();
+  if ( StartWiFi() == WL_CONNECTED ) 
+  {  
+    Serial.println("> Wifi connected");  
+  }
+  else 
+  {
+    statusWifi = 1;
+  }
     
+  if ( !tryRefresh("DateWeb", dateweb, &DateWeb::refresh) ) { refreshDateWeb = 1; }
+  if ( !tryRefresh("Weather", weather, &Weather::refresh) ) { refreshWeather = 1; }
+  if ( !tryRefresh("Domoticz", domoticz, &Domoticz::refresh) ) { refreshDomoticz = 1; }
+  tryRefresh("Air Pollution", airPollution, &AirPollution::refresh);
+
+  if (!strcmp(rtc_date, dateweb.get_dateCalendar()) == 0) 
+  {
+    if ( !tryRefresh("Nominis", nominis, &Nominis::refresh) ) { refreshNominis = 1; }
+    if ( !tryRefresh("Birthday", birthday, &Birthday::refresh) ) { refreshBirthday = 1; }
+
+    //const char* saintDuJour = nominis.get_saintDuJour();
+    //const char* birthdayItem = birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar());
+
+    if ( refreshDateWeb == 0) { snprintf(rtc_date, MAX_LENGTH, dateweb.get_dateCalendar()); }
+    if ( refreshNominis == 0) { snprintf(rtc_saintDuJour, MAX_LENGTH, nominis.get_saintDuJour()); }
+    if ( refreshBirthday == 0) { snprintf(rtc_birthday, MAX_LENGTH, birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar())); }
+  }
+
+  status = statusWifi + refreshDateWeb + refreshWeather + refreshDomoticz + refreshNominis + refreshBirthday;
+
+  Serial.print("Status after all refresh : "); Serial.println(status);
+
+  StopWiFi();
+
+  if ( status > 0 )
+  {
+    
+    Serial.println("#Wifi not connected or connection is broken ! Retry or exit !");
+
+    display.firstPage();
+    do {
+      u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+      u8g2Fonts.setCursor(40, 300);
+      u8g2Fonts.print("No connection : retry in 5 minutes");
+
+      u8g2Fonts.setFont(u8g2_font_helvB12_tf);
+      u8g2Fonts.setCursor(40, 400);
+      String status_wifi = "Wifi : " + String(statusWifi);
+      u8g2Fonts.print(status_wifi); 
+
+      u8g2Fonts.setCursor(40, 440);
+      String status_total = "Total : " + String(status);
+      u8g2Fonts.print(status_total); 
+
+    } while (display.nextPage());
+  }
+  else if (batteryPercentageLevel() < 1) {
+
+    Serial.println("#Battery Low !");
+
+    display.firstPage();
+    do {
+      u8g2Fonts.setFont(u8g2_font_helvB18_tf);
+      u8g2Fonts.setCursor(40, 300);
+      u8g2Fonts.print("Battery Low !");
+      u8g2Fonts.setFont(u8g2_font_helvB12_tf);
+      u8g2Fonts.setCursor(40, 400);
+      u8g2Fonts.print("Please plug me :-)"); 
+    } while (display.nextPage());
+  }
+  else
+  {
     display.firstPage();
     do {
       // Calcul de tout ce qui va s'écrir en 18pt
@@ -376,8 +445,6 @@ void boucle() {
     //display.setPartialWindow(display_height - WeatherIconSize, 0, WeatherIconSize, WeatherIconSize);
     display.drawImage(weather.get_situationIcon(), display_height - WeatherIconSize, 0, WeatherIconSize, WeatherIconSize, false, false, true);
     
-  } else {
-    Serial.println("#Wifi not connected ! Retry or exit !");
   }
 
   /// RAZ écran ///

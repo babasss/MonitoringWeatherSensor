@@ -6,8 +6,8 @@
 float MAX_BATTERY_VOLTAGE = 4.2; // Max LiPoly voltage of a 3.7 battery is 4.2
 float MIN_BATTERY_VOLTAGE = 3.0; // Minimum voltage of a discharged battery
 
-const char* battery_level() {
-  static char buffer[20];
+
+const float voltagePin () {
   // A13 pin is not exposed on Huzzah32 board because it's tied to
   // measuring voltage level of battery. Note: you must
   // multiply the analogRead value by 2x to get the true battery
@@ -26,6 +26,11 @@ const char* battery_level() {
   float batteryPercentage = (voltage - MAX_BATTERY_VOLTAGE) / (MAX_BATTERY_VOLTAGE - MIN_BATTERY_VOLTAGE) * 100.0;
 
   float voltagePin = rawValue / 4096.0 * 2 * 1.1 * 3.3; // au lieu de 7,46
+
+  return voltagePin;
+}
+
+const float batteryPercentageLevel () {
   //Régression polynomiale à partir d'une extrapolation du ratio voltage/pourcentage fourni par chatGPT
   //float batteryPercentagePin = 6.53953043*pow(10,-12)*pow(voltagePin,5)-0.000000000119222341*pow(voltagePin,4)-0.000000000867930581*pow(voltagePin,3)-0.00000000315376758*pow(voltagePin,2)+100*voltagePin-320;
   /*
@@ -33,8 +38,21 @@ const char* battery_level() {
   percentage = np.array([100, 95, 90, 85, 80, 75, 70, 65, 60, 55, 50, 45, 40, 35, 30, 25, 20, 15, 10, 5, 0])
   */
 
+  float voltageLevel = voltagePin();
+
+  float batteryPercentagePin = -186.396348951606*pow(voltageLevel,7)+3646.70044633217*pow(voltageLevel,6)-26889.5529074022*pow(voltageLevel,5)+79856.542204405*pow(voltageLevel,4)+27320.3505157116*pow(voltageLevel,3)-779854.340256534*pow(voltageLevel,2)+1841903.14340668*voltageLevel-1429703.41983678;
+
+  return batteryPercentagePin;
+
+}
+
+
+const char* battery_level() {
+  static char buffer[20];
+ 
   /* Nouvelle équation tirée d'une déchage classique de LiPo avec régression polynomiale à 7 niveaux */
-  float batteryPercentagePin = -186.396348951606*pow(voltagePin,7)+3646.70044633217*pow(voltagePin,6)-26889.5529074022*pow(voltagePin,5)+79856.542204405*pow(voltagePin,4)+27320.3505157116*pow(voltagePin,3)-779854.340256534*pow(voltagePin,2)+1841903.14340668*voltagePin-1429703.41983678;
+  float voltageLevel = voltagePin();
+  float batteryPercentagePin = batteryPercentageLevel();
 
   //batteryPercentage = constrain(batteryPercentage * 100, 0, 100); // Constrain percentage to be between 0 and 100
 
@@ -42,10 +60,14 @@ const char* battery_level() {
  
   //Serial.println((String)"Raw method 1:" + rawValue + " Voltage:" + voltageLevel + "V Percent: " + (batteryFraction * 100) + "%");
   //Serial.println((String)"Raw method 2:" + rawValue + " Voltage:" + voltage + "V Percent: " + batteryPercentage + "%");
-  //Serial.println((String)"Raw method 3:" + rawValue + " Voltage:" + voltagePin + "V Percent: " + batteryPercentagePin + "%");
+  //Serial.println((String)"Raw method 3:" + rawValue + " Voltage:" + voltageLevel + "V Percent: " + batteryPercentagePin + "%");
   
   //snprintf(buffer, sizeof(buffer), "%.1f %s -- %.1f %s", batteryFraction * 100, "%", batteryPercentagePin, "%");
-  snprintf(buffer, sizeof(buffer), "%.2f%s | %.1f%s", voltagePin, "V", batteryPercentagePin, "%");
+  snprintf(buffer, sizeof(buffer), "%.2f%s | %.1f%s", voltageLevel, "V", batteryPercentagePin, "%");
+
+  Serial.print("Battery level : ");
+  Serial.println(buffer); 
+
   return buffer;
 }
 
