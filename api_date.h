@@ -2,6 +2,7 @@ class DateWeb {
   public:
     String date_jour;
     String heure;
+    String date_jour_heure;
     int offset;
 
     bool refresh() {
@@ -19,10 +20,13 @@ class DateWeb {
         if (!error) {
           date_jour = jsonResponse["currentLocalTime"].as<String>().substring(0, 10); // Extraire la date au format YYYY-MM-DD
           heure = jsonResponse["currentLocalTime"].as<String>().substring(11, 16); 
+          date_jour_heure = jsonResponse["currentLocalTime"].as<String>().substring(0, 19);
           //offset = jsonResponse["datetime"].as<String>().substring(27, 29).toInt()*3600; 
           offset =  jsonResponse["currentUtcOffset"]["seconds"].as<String>().toInt();
 
-          if (date_jour != 0) { success = true; } else { success = false; }
+          //Serial.printf("date_jour : %s - heure : %s - date_jour_heure : %s \n", date_jour.c_str(), heure.c_str(), date_jour_heure.c_str());
+
+          success = (date_jour.length() > 0);
         } else {
           Serial.print(F("deserializeJson() failed: "));
           Serial.println(error.f_str());
@@ -37,18 +41,28 @@ class DateWeb {
       return success;
     }
 
-    const char* get_dateJour() {
-        static char buffer[20];
-        snprintf(buffer, sizeof(buffer), "%s", date_jour);
+    const char* get_dateJourHeure() {
+        static char buffer[50];
+        //date_jour_heure.replace("T", " ");
+        snprintf(buffer, sizeof(buffer), "%s %s:00", date_jour.c_str(), heure.c_str());
+        //Serial.printf("get_dateJourHeure : %s \n", buffer);
         return buffer;
     }
+
+    /*const char* get_dateJour() {
+        static char buffer[20];
+        snprintf(buffer, sizeof(buffer), "%s", date_jour.c_str());
+        Serial.printf("date_jour : %s \n", buffer);
+        return buffer;
+    }*/
 
     const char* get_dateHeure() {
         static char buffer[50];
         int month = date_jour.substring(5, 7).toInt();
         int day = date_jour.substring(8, 10).toInt();
 
-        snprintf(buffer, sizeof(buffer), "Dernière mise à jour : %02d/%02d %s", day, month, heure);
+        snprintf(buffer, sizeof(buffer), "Dernière mise à jour : %02d/%02d %s", day, month, heure.c_str());
+        //Serial.printf("get_dateHeure : %s \n", buffer);
         return buffer;
     }
 
@@ -59,6 +73,7 @@ class DateWeb {
         int day = date_jour.substring(8, 10).toInt();
 
         snprintf(buffer, sizeof(buffer), "%02d%02d", month, day);
+        //Serial.printf("dateCalendar : %s \n", buffer);
         return buffer;
     }
 

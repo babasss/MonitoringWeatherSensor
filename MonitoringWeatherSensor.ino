@@ -145,6 +145,7 @@ void boucle() {
   if ( !tryRefresh("DateWeb", dateweb, &DateWeb::refresh) ) { refreshDateWeb = 1; }
   if ( !tryRefresh("Weather", weather, &Weather::refresh) ) { refreshWeather = 1; }
   if ( !tryRefresh("Domoticz", domoticz, &Domoticz::refresh) ) { refreshDomoticz = 1; }
+
   tryRefresh("Air Pollution", airPollution, &AirPollution::refresh);
 
   if (!strcmp(rtc_date, dateweb.get_dateCalendar()) == 0) 
@@ -359,7 +360,9 @@ void boucle() {
       }
 
       Serial.println("> Dessin");
+
       // Dessin de l'appart - on va utiliser des rectangles pour avoir des lignes plus épaisses !
+      const char* dateJourHeure = dateweb.get_dateJourHeure();
       display.fillRect(zoneDessin_gauche, zoneDessin_haut, zoneDessin_width, zoneDessin_epaisseur, GxEPD_BLACK); // mur haut
       display.fillRect(zoneDessin_gauche, zoneDessin_haut, zoneDessin_epaisseur, zoneDessin_height, GxEPD_BLACK); // mur gauche
       display.fillRect(zoneDessin_gauche + zoneDessin_width, zoneDessin_haut, zoneDessin_epaisseur, zoneDessin_height, GxEPD_BLACK); //mur droite
@@ -380,55 +383,55 @@ void boucle() {
 
       // Dehors Jardin
       u8g2Fonts.setCursor(display_width / 2 - 50, zoneDessin_haut - 10);
-      u8g2Fonts.print(domoticz.get_Sensor("Dehors Jardin", "Temp", true));
+      u8g2Fonts.print(domoticz.get_Sensor("Dehors Jardin", "Temp", true, dateJourHeure));
       u8g2Fonts.setCursor(display_width / 2 + 20, zoneDessin_haut - 10);
-      u8g2Fonts.print(domoticz.get_Sensor("Dehors Jardin", "Humidity", true));
+      u8g2Fonts.print(domoticz.get_Sensor("Dehors Jardin", "Humidity", true, dateJourHeure));
 
       // Dehors Rue
       u8g2Fonts.setCursor(display_width / 2 - 50, zoneDessin_haut + zoneDessin_height + 20);
-      u8g2Fonts.print(domoticz.get_Sensor("Dehors Rue", "Temp", true));
+      u8g2Fonts.print(domoticz.get_Sensor("Dehors Rue", "Temp", true, dateJourHeure));
       u8g2Fonts.setCursor(display_width / 2 + 20, zoneDessin_haut + zoneDessin_height + 20);
-      u8g2Fonts.print(domoticz.get_Sensor("Dehors Rue", "Humidity", true));
+      u8g2Fonts.print(domoticz.get_Sensor("Dehors Rue", "Humidity", true, dateJourHeure));
 
       // Chambre Ben & Nat
       u8g2Fonts.setCursor(zoneDessin_gauche + 60, zoneDessin_haut + 190);
-      u8g2Fonts.print(domoticz.get_Sensor("Chambre Ben & Nat", "Temp"));
+      u8g2Fonts.print(domoticz.get_Sensor("Chambre Ben & Nat", "Temp", false, dateJourHeure));
       u8g2Fonts.setCursor(zoneDessin_gauche + 60, zoneDessin_haut + 210);
-      u8g2Fonts.print(domoticz.get_Sensor("Chambre Ben & Nat", "Humidity"));
+      u8g2Fonts.print(domoticz.get_Sensor("Chambre Ben & Nat", "Humidity", false, dateJourHeure));
 
       // Chambre Clo
       u8g2Fonts.setCursor(zoneDessin_gauche + 60, zoneDessin_haut + 50);
-      u8g2Fonts.print(domoticz.get_Sensor("Chambre Clo", "Temp"));
+      u8g2Fonts.print(domoticz.get_Sensor("Chambre Clo", "Temp", false, dateJourHeure));
       u8g2Fonts.setCursor(zoneDessin_gauche + 60, zoneDessin_haut + 70);
-      u8g2Fonts.print(domoticz.get_Sensor("Chambre Clo", "Humidity"));
+      u8g2Fonts.print(domoticz.get_Sensor("Chambre Clo", "Humidity", false, dateJourHeure));
 
       // Chambre Elé & Mayo
       u8g2Fonts.setCursor(zoneDessin_gauche + 210, zoneDessin_haut + 50);
-      u8g2Fonts.print(domoticz.get_Sensor("Chambre Elé & Mayo", "Temp"));
+      u8g2Fonts.print(domoticz.get_Sensor("Chambre Elé & Mayo", "Temp", false, dateJourHeure));
       u8g2Fonts.setCursor(zoneDessin_gauche + 210, zoneDessin_haut + 70);
-      u8g2Fonts.print(domoticz.get_Sensor("Chambre Elé & Mayo", "Humidity"));
+      u8g2Fonts.print(domoticz.get_Sensor("Chambre Elé & Mayo", "Humidity", false, dateJourHeure));
 
       // Salon
       u8g2Fonts.setCursor(zoneDessin_gauche + 240, zoneDessin_haut + 190);
-      u8g2Fonts.print(domoticz.get_Sensor("Salon", "Temp"));
+      u8g2Fonts.print(domoticz.get_Sensor("Salon", "Temp", false, dateJourHeure));
       u8g2Fonts.setCursor(zoneDessin_gauche + 240, zoneDessin_haut + 210);
-      u8g2Fonts.print(domoticz.get_Sensor("Salon", "Humidity"));
+      u8g2Fonts.print(domoticz.get_Sensor("Salon", "Humidity", false, dateJourHeure));
 
       // Salle de bains
       u8g2Fonts.setCursor(zoneDessin_gauche + 360, zoneDessin_haut + 50);
-      u8g2Fonts.print(domoticz.get_Sensor("Salle de bains", "Temp"));
+      u8g2Fonts.print(domoticz.get_Sensor("Salle de bains", "Temp", false, dateJourHeure));
       u8g2Fonts.setCursor(zoneDessin_gauche + 360, zoneDessin_haut + 70);
-      u8g2Fonts.print(domoticz.get_Sensor("Salle de bains", "Humidity"));
+      u8g2Fonts.print(domoticz.get_Sensor("Salle de bains", "Humidity", false, dateJourHeure));
 
       // Salle d'eau
       u8g2Fonts.setCursor(zoneDessin_gauche + 40, zoneDessin_haut + 130);
-      u8g2Fonts.print(domoticz.get_Sensor("Salle d'eau", "Temp"));
+      u8g2Fonts.print(domoticz.get_Sensor("Salle d'eau", "Temp", false, dateJourHeure));
       u8g2Fonts.setCursor(zoneDessin_gauche + 40, zoneDessin_haut + 150);
-      u8g2Fonts.print(domoticz.get_Sensor("Salle d'eau", "Humidity"));
+      u8g2Fonts.print(domoticz.get_Sensor("Salle d'eau", "Humidity", false, dateJourHeure));
 
       // Placard NAS
       u8g2Fonts.setCursor(zoneDessin_gauche + 210, zoneDessin_haut + 140);
-      u8g2Fonts.print(domoticz.get_Sensor("Placard NAS", "Temp"));
+      u8g2Fonts.print(domoticz.get_Sensor("Placard NAS", "Temp", false, dateJourHeure));
 
       // Footer
       Serial.println("> Footer");

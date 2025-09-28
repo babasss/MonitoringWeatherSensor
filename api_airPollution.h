@@ -27,7 +27,7 @@ public:
         
         
         // Construire l'URL de la requête
-        Serial.println(">>>> Début Airpollution Forecast");
+        //Serial.println(">>>> Début Airpollution Forecast");
         int responseAirPollutionCodeForecast;
         String responseAirPollutionStringForecast;
         DynamicJsonDocument jsonResponseAirPollutionForecast(1024);

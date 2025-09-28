@@ -1,12 +1,24 @@
 #include <WiFiClient.h>
+//#include <WiFiClientSecure.h>
 #include <HTTPClient.h>
 
 void http_request(String url, int & responseCode, String & responseString, String header[] = nullptr) {
 
   HTTPClient http;
+  //WiFiClientSecure client;
+  //client.setInsecure();
+
+  //HTTPClient https;
+
+  Serial.println(url);
 
   // Your Domain name with URL path or IP address with path
   http.begin(url);
+  //http.begin("https://www.timeapi.io/api/timezone/zone?timeZone=Europe/Paris");
+  http.setTimeout(5000);
+  //https.begin(client, "http://192.168.1.38/package_DFRobot_index.json");
+  //https.setTimeout(5000);
+  
 
   if (header != nullptr) {
     http.addHeader(header[0], header[1]);
@@ -18,6 +30,9 @@ void http_request(String url, int & responseCode, String & responseString, Strin
   if (responseCode > 0) {
     responseString = http.getString();
   }
+
+  //Serial.println("DEBUG HTTP CODE : " + String(responseCode));
+  //Serial.println("DEBUG HTTP STRING : " + responseString.substring(0, 100));
 
   // Free resources
   http.end();
@@ -61,4 +76,23 @@ bool tryRefresh(const String& name, T& obj, bool (T::*refreshFunc)()) {
     Serial.print(name);
     Serial.println(" : Échec du rafraîchissement des données après 5 tentatives.");
     return false;
+}
+
+
+time_t convertToEpoch(const char* dateStr) {
+  struct tm tm;
+  memset(&tm, 0, sizeof(tm));
+
+  sscanf(dateStr, "%d-%d-%d %d:%d:%d",
+         &tm.tm_year, &tm.tm_mon, &tm.tm_mday,
+         &tm.tm_hour, &tm.tm_min, &tm.tm_sec);
+
+  tm.tm_year -= 1900;  // struct tm attend années depuis 1900
+  tm.tm_mon  -= 1;     // struct tm attend mois 0–11
+
+  time_t epoch = mktime(&tm);
+
+  //Serial.printf("%s - %ld \n", dateStr, (long)epoch);
+  
+  return epoch;
 }

@@ -57,34 +57,36 @@ public:
     }
 
     const char* get_BirthdayOfTheDay(const char* date_event) {
-      //Debug
-      //serializeJson((*jsonBirthday), Serial);
-      // Vérifier si la clé existe dans l'objet JSON
-      if (!(*jsonBirthday).containsKey(date_event)) {
-        return "-"; // Retourner une chaîne vide si la date n'existe pas
-      }
-
-      // Récupérer le tableau d'événements pour cette date
-      JsonArray namesArray = (*jsonBirthday)[date_event].as<JsonArray>();
-
-      // Initialiser un buffer pour stocker les résultats
-      static char result[256]; // Taille maximale ajustable
-      result[0] = '\0';        // Assurez-vous que le buffer est vide
-
-      strncat(result, "Anniversaire : ", sizeof(result) - strlen(result) - 1);
-
-      // Construire une chaîne avec les noms séparés par des virgules
-      for (size_t i = 0; i < namesArray.size(); i++) {
-        const char* name = namesArray[i];
-        strncat(result, name, sizeof(result) - strlen(result) - 1);
-        if (i < namesArray.size() - 1) {
-          strncat(result, ", ", sizeof(result) - strlen(result) - 1);
-        }
-      }
-
-      return result;
+    // Vérifier si la clé existe dans l'objet JSON
+    if (!(*jsonBirthday).containsKey(date_event)) {
+      return "-"; // Retourner "-" si la date n'existe pas
     }
 
+    // Récupérer le tableau d'événements pour cette date
+    JsonArray namesArray = (*jsonBirthday)[date_event].as<JsonArray>();
+
+    // Buffer statique (attention : écrasé à chaque appel)
+    static char result[256];
+    size_t pos = 0;
+    result[0] = '\0';
+
+    // Ajouter le préfixe
+    pos += snprintf(result + pos, sizeof(result) - pos, "Anniversaire : ");
+
+    // Ajouter les prénoms
+    for (size_t i = 0; i < namesArray.size(); i++) {
+      const char* name = namesArray[i];
+      pos += snprintf(result + pos, sizeof(result) - pos, "%s", name);
+      if (i < namesArray.size() - 1) {
+        pos += snprintf(result + pos, sizeof(result) - pos, ", ");
+      }
+    }
+
+    // Debug
+    Serial.printf("> Affichage anniversaire -> %s\n", result);
+
+    return result;
+  }
 
 private:
   String icsData;
