@@ -40,3 +40,11 @@ Un projet Arduino pour surveiller et afficher des informations météorologiques
 2. Cloner le dépôt :
    ```bash
    git clone https://github.com/babasss/MonitoringWeatherSensor.git
+3. Installer les bibliothèques Arduino nécessaires (LiquidCrystal, WiFi, etc.).
+4. Configurer config.h avec vos paramètres Wi-Fi et API.
+5. Ouvrir MonitoringWeatherSensor.ino dans l’IDE et téléverser sur votre carte Arduino.
+
+## 🚀 Utilisation
+1. Allumer l’Arduino et vérifier que la connexion Wi-Fi est établie.
+2. Les données météo et autres informations s’affichent sur l’écran LCD.
+3. Les icônes météo sont affichées en fonction des conditions actuelles.
