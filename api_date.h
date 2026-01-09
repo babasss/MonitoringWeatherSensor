@@ -18,11 +18,12 @@ class DateWeb {
         DeserializationError error = deserializeJson(jsonResponse, responseString);
 
         if (!error) {
-          date_jour = jsonResponse["currentLocalTime"].as<String>().substring(0, 10); // Extraire la date au format YYYY-MM-DD
-          heure = jsonResponse["currentLocalTime"].as<String>().substring(11, 16); 
-          date_jour_heure = jsonResponse["currentLocalTime"].as<String>().substring(0, 19);
+          date_jour = jsonResponse["datetime"].as<String>().substring(0, 10); // Extraire la date au format YYYY-MM-DD // currentLocalTime pour timeapi.io
+          heure = jsonResponse["datetime"].as<String>().substring(11, 16); 
+          date_jour_heure = jsonResponse["datetime"].as<String>().substring(0, 19);
+          date_jour_heure.replace("T"," ");
           //offset = jsonResponse["datetime"].as<String>().substring(27, 29).toInt()*3600; 
-          offset =  jsonResponse["currentUtcOffset"]["seconds"].as<String>().toInt();
+          offset =  jsonResponse["raw_offset"].as<String>().toInt();
 
           //Serial.printf("date_jour : %s - heure : %s - date_jour_heure : %s \n", date_jour.c_str(), heure.c_str(), date_jour_heure.c_str());
 
