@@ -19,11 +19,13 @@ const char weather_url[] = "http://api.openweathermap.org";
 
 const char nominis_url[] = "https://nominis.cef.fr/json/saintdujour.php";
 
-const char date_url[] = "https://www.timeapi.io/api/timezone/zone?timeZone=Europe/Paris";
+const char date_url[] = "http://worldtimeapi.org/api/timezone/Europe/Paris";
+//const char date_url[] = "https://www.timeapi.io/api/timezone/zone?timeZone=Europe/Paris";
 
 // Domoticz
 const char domoticz_apikey[] = "";
 const char domoticz_url[] = "http://X.X.X.X/json.htm?type=devices&used=true&order=Name";
 
 // Birthday Calendar
+
 const char birthday_url[] = "https://calendar.google.com/calendar/ical/n3jl5cv82ftlg8208ftkd2086g%40group.calendar.google.com/private-4818f33937911c10f8005373bb85a72b/basic.ics";
