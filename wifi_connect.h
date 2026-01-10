@@ -1,6 +1,3 @@
-#include <WiFi.h>                     // Built-in
-#include <NTPClient.h>
-
 int wifi_signal; 
 
 uint8_t StartWiFi() {

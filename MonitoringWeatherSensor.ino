@@ -6,16 +6,26 @@ Reste à faire :
  - 
 */
 
-#include "config.h"  // See 'owm_credentials' tab and enter your OWM API key and set the Wifi SSID and PASSWORD
 #include <Arduino.h>
 #include <ArduinoJson.h>
+#include <time.h>
+#include <WiFi.h>                     // Built-in
+#include <WiFiClient.h>
+//#include <NTPClient.h>
+#include <esp_sntp.h>
+#include <HTTPClient.h>
+
 using namespace ArduinoJson;
 
+/* Fonctions perso */
+#include "config.h"  // Config
 #include "wifi_connect.h"
 #include "functions.h"
 #include "battery.h"
+#include "WeatherIcons.h"
 
-#include "api_date.h"
+/* API perso */
+//#include "api_date.h"
 #include "api_nominis.h"
 #include "api_weather.h"
 #include "api_domoticz.h"
@@ -43,7 +53,7 @@ U8G2_FONTS_GFX u8g2Fonts(display);
 
 // Définition des classes
 Nominis nominis;
-DateWeb dateweb;
+//DateSyncNTP dateSync;
 Weather weather;
 Domoticz domoticz;
 AirPollution airPollution;
@@ -66,7 +76,7 @@ int zoneDessin_width = 430;
 int zoneDessin_height = 240;
 int zoneDessin_epaisseur = 2;
 
-int status = 0;
+int statusCount = 0;
 int real_time_to_sleep = TIME_TO_SLEEP;
 
 #define MAX_LENGTH 500  // Taille maximale par chaîne
@@ -110,7 +120,7 @@ void setup() {
 
   boucle();
 
-  if ( status > 0 )
+  if ( statusCount > 0 )
   {
     real_time_to_sleep = 300;
   }
@@ -119,7 +129,9 @@ void setup() {
     real_time_to_sleep = TIME_TO_SLEEP;
   }
 
-  Serial.print("\r\n#DEEP SLEEP for : "); Serial.print(real_time_to_sleep/60); Serial.println(" minutes");
+  //Serial.print("\r\n#DEEP SLEEP for : "); Serial.print(real_time_to_sleep/60); Serial.println(" minutes");
+  Serial.printf("\r\n#DEEP SLEEP for : %d minutes\n", real_time_to_sleep/60);
+
   esp_deep_sleep(real_time_to_sleep * uS_TO_S_FACTOR);
 }
 
@@ -127,53 +139,79 @@ void boucle() {
   // put your main code here, to run repeatedly:
 
   int currentLine = 0;
-
-  int statusWifi = 0;
-  int statusDateWeb = 0;
-  int statusWeather = 0;
-  int statusDomoticz = 0;
-  int statusNominis = 0;
-  int statusBirthday = 0;
-
-  status = 0;
+  struct tm timeinfo;
+  bool statusWifi;
+  bool statusWeather;
+  bool statusDomoticz;
+  bool statusAirPollution;
+  bool statusNominis;
+  bool statusBirthday;
+  bool statusDateSync;
 
   Serial.println("#DEBUT BOUCLE");
 
   if ( StartWiFi() == WL_CONNECTED ) 
   {  
-    Serial.println("> Wifi connected");  
+    Serial.println("> Wifi connected");
+    statusWifi = true;
+
+    // 2. Initialisation NTP (Config système ESP32)
+    configTzTime(ntpTzInfo, ntpServer);
+
+    // 3. Attente de synchronisation (Timeout 10s pour préserver la batterie)
+    int attempts = 0;
+    while (attempts < maxRetries) {
+      attempts++;
+      Serial.printf("> DateSync : Tentative %d/%d\n", attempts, maxRetries);
+      if (sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED) {
+          statusDateSync = true;
+          break; // Succès, on sort de la boucle !
+      }
+      else
+      { 
+        statusDateSync = false;
+      }
+      delay(1000);
+    }
+
+    // 4. Affichage du résultat
+    if ( statusDateSync ) {
+      time_t now;
+      time(&now);
+      localtime_r(&now, &timeinfo);
+      
+      // Utilisation d'un buffer pour l'affichage propre
+      char buf[64];
+      strftime(buf, sizeof(buf), "%A %d %B %Y %H:%M:%S", &timeinfo);
+      Serial.printf("Date synchronisée : %s\n", buf);
+    }
+
+    statusWeather = tryRefresh("Weather", []() { return weather.refresh(); });
+    statusDomoticz = tryRefresh("Domoticz", []() { return domoticz.refresh(); });
+    statusAirPollution = tryRefresh("AirPollution", []() { return airPollution.refresh(); });
+    statusNominis = tryRefresh("Nominis", []() { return nominis.refresh(); });
+    statusBirthday = tryRefresh("Birthday", []() { return birthday.refresh(); });
+
+    if (!strcmp(rtc_date, get_dateCalendar(&timeinfo)) == 0) 
+    {
+      if ( statusDateSync ) { snprintf(rtc_date, MAX_LENGTH, get_dateCalendar(&timeinfo)); }
+      if ( statusNominis ) { snprintf(rtc_saintDuJour, MAX_LENGTH, nominis.get_saintDuJour()); }
+      if ( statusBirthday ) { snprintf(rtc_birthday, MAX_LENGTH, birthday.get_BirthdayOfTheDay(get_dateCalendar(&timeinfo))); }
+    }
+
+    statusCount = statusDateSync?0:1 + statusWeather?0:1 + statusDomoticz?0:1 + statusNominis?0:1 + statusBirthday?0:1;
+
+    //Serial.print("Status after all refresh : "); Serial.println(status);
+    Serial.printf("Status after all refresh : %d\n", statusCount);
+
+    StopWiFi();
   }
   else 
   {
-    statusWifi = 1;
-  }
-    
-  if ( !tryRefresh("DateWeb", dateweb, &DateWeb::refresh) ) { statusDateWeb = 1; }
-  if ( !tryRefresh("Weather", weather, &Weather::refresh) ) { statusWeather = 1; }
-  if ( !tryRefresh("Domoticz", domoticz, &Domoticz::refresh) ) { statusDomoticz = 1; }
-
-  tryRefresh("Air Pollution", airPollution, &AirPollution::refresh);
-
-  if (!strcmp(rtc_date, dateweb.get_dateCalendar()) == 0) 
-  {
-    if ( !tryRefresh("Nominis", nominis, &Nominis::refresh) ) { statusNominis = 1; }
-    if ( !tryRefresh("Birthday", birthday, &Birthday::refresh) ) { statusBirthday = 1; }
-
-    //const char* saintDuJour = nominis.get_saintDuJour();
-    //const char* birthdayItem = birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar());
-
-    if ( statusDateWeb == 0) { snprintf(rtc_date, MAX_LENGTH, dateweb.get_dateCalendar()); }
-    if ( statusNominis == 0) { snprintf(rtc_saintDuJour, MAX_LENGTH, nominis.get_saintDuJour()); }
-    if ( statusBirthday == 0) { snprintf(rtc_birthday, MAX_LENGTH, birthday.get_BirthdayOfTheDay(dateweb.get_dateCalendar())); }
+    statusWifi = false;
   }
 
-  status = statusWifi + statusDateWeb + statusWeather + statusDomoticz + statusNominis + statusBirthday;
-
-  Serial.print("Status after all refresh : "); Serial.println(status);
-
-  StopWiFi();
-
-  if ( statusWifi > 0 )
+  if ( !statusWifi )
   {
     
     Serial.println("#Wifi not connected or connection is broken ! Retry or exit !");
@@ -190,7 +228,7 @@ void boucle() {
       u8g2Fonts.print(status_wifi); 
 
       u8g2Fonts.setCursor(40, 440);
-      String status_total = "Total : " + String(status);
+      String status_total = "Total : " + String(statusCount);
       u8g2Fonts.print(status_total); 
 
     } while (display.nextPage());
@@ -219,20 +257,20 @@ void boucle() {
       // Date en lettre
       u8g2Fonts.setFont(u8g2_font_helvB18_tf);
 
-      // DateWeb
+      // DateSync
       currentLine = currentLine + 25;
-      if ( statusDateWeb > 0 ) 
+      if ( !statusDateSync ) 
       {  u8g2Fonts.setCursor(WeatherIconSize + (currentSpace) / 2, currentLine); u8g2Fonts.print("No data"); }
       else
       {
-        int dJLw = u8g2Fonts.getUTF8Width(dateweb.get_dateJourLettre());
+        int dJLw = u8g2Fonts.getUTF8Width(get_dateJourLettre(&timeinfo));
         u8g2Fonts.setCursor(WeatherIconSize + (currentSpace - dJLw) / 2, currentLine);
-        u8g2Fonts.print(dateweb.get_dateJourLettre());
+        u8g2Fonts.print(get_dateJourLettre(&timeinfo));
       }
 
       // Saint du jour
       currentLine = currentLine + 22; //lineHeight9
-      if ( statusNominis > 0 ) 
+      if ( !statusNominis ) 
       {  u8g2Fonts.setCursor(WeatherIconSize + (currentSpace) / 2, currentLine); u8g2Fonts.print("No data"); }
       else
       {
@@ -244,7 +282,7 @@ void boucle() {
       
       // Anniversaire
       currentLine = currentLine + 22; //lineHeight9
-      if ( statusBirthday > 0 ) 
+      if ( !statusBirthday ) 
       {  u8g2Fonts.setCursor(WeatherIconSize + (currentSpace) / 2, currentLine); u8g2Fonts.print("No data"); }
       else
       {
@@ -254,7 +292,7 @@ void boucle() {
       }
       
       // Weather
-      if ( statusWeather > 0 ) 
+      if ( !statusWeather ) 
       {  u8g2Fonts.setCursor(WeatherIconSize + (currentSpace) / 2, currentLine + 100); u8g2Fonts.print("No data"); }
       else
       {
@@ -335,9 +373,9 @@ void boucle() {
         currentLine = currentLine + 25; 
         u8g2Fonts.setFont(u8g2_font_helvB10_tf);
         u8g2Fonts.setCursor(WeatherIconSize + 70, currentLine);
-        u8g2Fonts.print(weather.get_sunrise(dateweb.offset));
+        u8g2Fonts.print(weather.get_sunrise());
         u8g2Fonts.setCursor(WeatherIconSize + 160, currentLine);
-        u8g2Fonts.print(weather.get_sunset(dateweb.offset));
+        u8g2Fonts.print(weather.get_sunset());
 
         display.setFont(&MonitoringWeatherIcon18pt7b);
         display.setCursor(WeatherIconSize + 40, currentLine);
@@ -358,7 +396,7 @@ void boucle() {
         for (int t=0; t < weather.get_nbElementForecast(); t++)
         {
           u8g2Fonts.setCursor(15, currentLine);
-          u8g2Fonts.print(weather.get_dateForecast(t, dateweb.offset));
+          u8g2Fonts.print(weather.get_dateForecast(t));
 
           display.setFont(&MonitoringWeatherIcon18pt7b);
           display.setCursor(120, currentLine + 5);
@@ -382,20 +420,18 @@ void boucle() {
           { display.print(airPollution.get_airPollution("forecast", weather.get_dtForecast(t))); }
           
           currentLine = currentLine + 30;
-          //Serial.println(weather.get_dateForecast(t, dateweb.offset));
-          //weather.get_dateForecast(t, dateweb.offset);
         }
       }
 
       Serial.println("> Dessin");
 
       // Weather
-      if ( statusDomoticz > 0 ) 
+      if ( !statusDomoticz ) 
       {  u8g2Fonts.setCursor(zoneDessin_width / 2, zoneDessin_haut + 100); u8g2Fonts.print("No data"); }
       else
       {
         // Dessin de l'appart - on va utiliser des rectangles pour avoir des lignes plus épaisses !
-        const char* dateJourHeure = dateweb.get_dateJourHeure();
+        // DEPRECATED const char* dateJourHeure = dateSync.get_dateJourHeure();
         display.fillRect(zoneDessin_gauche, zoneDessin_haut, zoneDessin_width, zoneDessin_epaisseur, GxEPD_BLACK); // mur haut
         display.fillRect(zoneDessin_gauche, zoneDessin_haut, zoneDessin_epaisseur, zoneDessin_height, GxEPD_BLACK); // mur gauche
         display.fillRect(zoneDessin_gauche + zoneDessin_width, zoneDessin_haut, zoneDessin_epaisseur, zoneDessin_height, GxEPD_BLACK); //mur droite
@@ -416,55 +452,55 @@ void boucle() {
 
         // Dehors Jardin
         u8g2Fonts.setCursor(display_width / 2 - 50, zoneDessin_haut - 10);
-        u8g2Fonts.print(domoticz.get_Sensor("Dehors Jardin", "Temp", true, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Dehors Jardin", "Temp", true));
         u8g2Fonts.setCursor(display_width / 2 + 20, zoneDessin_haut - 10);
-        u8g2Fonts.print(domoticz.get_Sensor("Dehors Jardin", "Humidity", true, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Dehors Jardin", "Humidity", true));
 
         // Dehors Rue
         u8g2Fonts.setCursor(display_width / 2 - 50, zoneDessin_haut + zoneDessin_height + 20);
-        u8g2Fonts.print(domoticz.get_Sensor("Dehors Rue", "Temp", true, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Dehors Rue", "Temp", true));
         u8g2Fonts.setCursor(display_width / 2 + 20, zoneDessin_haut + zoneDessin_height + 20);
-        u8g2Fonts.print(domoticz.get_Sensor("Dehors Rue", "Humidity", true, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Dehors Rue", "Humidity", true));
 
         // Chambre Ben & Nat
         u8g2Fonts.setCursor(zoneDessin_gauche + 60, zoneDessin_haut + 190);
-        u8g2Fonts.print(domoticz.get_Sensor("Chambre Ben & Nat", "Temp", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Chambre Ben & Nat", "Temp", false));
         u8g2Fonts.setCursor(zoneDessin_gauche + 60, zoneDessin_haut + 210);
-        u8g2Fonts.print(domoticz.get_Sensor("Chambre Ben & Nat", "Humidity", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Chambre Ben & Nat", "Humidity", false));
 
         // Chambre Clo
         u8g2Fonts.setCursor(zoneDessin_gauche + 60, zoneDessin_haut + 50);
-        u8g2Fonts.print(domoticz.get_Sensor("Chambre Clo", "Temp", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Chambre Clo", "Temp", false));
         u8g2Fonts.setCursor(zoneDessin_gauche + 60, zoneDessin_haut + 70);
-        u8g2Fonts.print(domoticz.get_Sensor("Chambre Clo", "Humidity", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Chambre Clo", "Humidity", false));
 
         // Chambre Elé & Mayo
         u8g2Fonts.setCursor(zoneDessin_gauche + 210, zoneDessin_haut + 50);
-        u8g2Fonts.print(domoticz.get_Sensor("Chambre Elé & Mayo", "Temp", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Chambre Elé & Mayo", "Temp", false));
         u8g2Fonts.setCursor(zoneDessin_gauche + 210, zoneDessin_haut + 70);
-        u8g2Fonts.print(domoticz.get_Sensor("Chambre Elé & Mayo", "Humidity", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Chambre Elé & Mayo", "Humidity", false));
 
         // Salon
         u8g2Fonts.setCursor(zoneDessin_gauche + 240, zoneDessin_haut + 190);
-        u8g2Fonts.print(domoticz.get_Sensor("Salon", "Temp", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Salon", "Temp", false));
         u8g2Fonts.setCursor(zoneDessin_gauche + 240, zoneDessin_haut + 210);
-        u8g2Fonts.print(domoticz.get_Sensor("Salon", "Humidity", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Salon", "Humidity", false));
 
         // Salle de bains
         u8g2Fonts.setCursor(zoneDessin_gauche + 360, zoneDessin_haut + 50);
-        u8g2Fonts.print(domoticz.get_Sensor("Salle de bains", "Temp", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Salle de bains", "Temp", false));
         u8g2Fonts.setCursor(zoneDessin_gauche + 360, zoneDessin_haut + 70);
-        u8g2Fonts.print(domoticz.get_Sensor("Salle de bains", "Humidity", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Salle de bains", "Humidity", false));
 
         // Salle d'eau
         u8g2Fonts.setCursor(zoneDessin_gauche + 40, zoneDessin_haut + 130);
-        u8g2Fonts.print(domoticz.get_Sensor("Salle d'eau", "Temp", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Salle d'eau", "Temp", false));
         u8g2Fonts.setCursor(zoneDessin_gauche + 40, zoneDessin_haut + 150);
-        u8g2Fonts.print(domoticz.get_Sensor("Salle d'eau", "Humidity", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Salle d'eau", "Humidity", false));
 
         // Placard NAS
         u8g2Fonts.setCursor(zoneDessin_gauche + 210, zoneDessin_haut + 140);
-        u8g2Fonts.print(domoticz.get_Sensor("Placard NAS", "Temp", false, dateJourHeure));
+        u8g2Fonts.print(domoticz.get_Sensor("Placard NAS", "Temp", false));
       }
 
       // Footer
@@ -472,7 +508,7 @@ void boucle() {
       currentLine = display_height - 10;
 
       u8g2Fonts.setCursor(0, currentLine);
-      if ( statusDateWeb == 0 ) { u8g2Fonts.print(dateweb.get_dateHeure()); }
+      if ( statusDateSync ) { u8g2Fonts.print(get_dateHeure(&timeinfo)); }
 
       u8g2Fonts.setCursor(display_width - 120, currentLine);
       u8g2Fonts.print(battery_level());
@@ -480,7 +516,7 @@ void boucle() {
     } while (display.nextPage());
 
     //display.setPartialWindow(display_height - WeatherIconSize, 0, WeatherIconSize, WeatherIconSize);
-    if ( statusWeather == 0 ) { display.drawImage(weather.get_situationIcon(), display_height - WeatherIconSize, 0, WeatherIconSize, WeatherIconSize, false, false, true); }
+    if ( statusWeather ) { display.drawImage(weather.get_situationIcon(), display_height - WeatherIconSize, 0, WeatherIconSize, WeatherIconSize, false, false, true); }
     
   }
 

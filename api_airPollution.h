@@ -1,72 +1,74 @@
 class AirPollution {
 public:
-    DynamicJsonDocument* jsonResponseAirPollutionCurrent;
-    DynamicJsonDocument* jsonCalculatedAirPollutionForecast;
+    // Documents persistants pour la classe
+    JsonDocument docAirCurrent;
+    JsonDocument docAirForecast;
 
-    AirPollution() {
-        jsonResponseAirPollutionCurrent = new DynamicJsonDocument(512); // Initialiser jsonResponse dans le constructeur
-        jsonCalculatedAirPollutionForecast = new DynamicJsonDocument(1024); // Initialiser jsonResponse dans le constructeur
-    }
+    AirPollution() {}
 
     bool refresh() {
-        int responseAirPollutionCodeCurrent;
-        String responseAirPollutionStringCurrent;
-        char url_airPollution[256];
+        int responseCode;
+        String responseString;
+        char url[300];
 
-        // Construire l'URL de la requête
-        snprintf(url_airPollution, sizeof(url_airPollution), "%s/data/2.5/air_pollution?appid=%s&lat=%s&lon=%s&lang=%s&units=%s&mode=json", weather_url, weather_apikey, weather_lat, weather_long, weather_lang, weather_unit);
-        http_request(url_airPollution, responseAirPollutionCodeCurrent, responseAirPollutionStringCurrent);
-        if (responseAirPollutionCodeCurrent > 0) {
-            //Serial.println(responseStringCurrent);
-            deserializeJson(*jsonResponseAirPollutionCurrent, responseAirPollutionStringCurrent); // Dereference le pointeur ici
-            (*jsonResponseAirPollutionCurrent).shrinkToFit();
-            //return true;
+        // --- 1. RÉCUPÉRATION AIR POLLUTION ACTUELLE ---
+        snprintf(url, sizeof(url), "%s/data/2.5/air_pollution?appid=%s&lat=%s&lon=%s&lang=%s&units=%s&mode=json", 
+                 weather_url, weather_apikey, weather_lat, weather_long, weather_lang, weather_unit);
+        
+        http_request(url, responseCode, responseString);
+        
+        if (responseCode > 0) {
+            docAirCurrent.clear();
+            deserializeJson(docAirCurrent, responseString);
+            docAirCurrent.shrinkToFit();
         } else {
-          return false;
+            return false;
         }
+
+        // --- 2. RÉCUPÉRATION PRÉVISIONS (FORECAST) ---
+        snprintf(url, sizeof(url), "%s/data/2.5/air_pollution/forecast?appid=%s&lat=%s&lon=%s&lang=%s&units=%s&mode=json", 
+                 weather_url, weather_apikey, weather_lat, weather_long, weather_lang, weather_unit);
         
+        http_request(url, responseCode, responseString);
         
-        // Construire l'URL de la requête
-        //Serial.println(">>>> Début Airpollution Forecast");
-        int responseAirPollutionCodeForecast;
-        String responseAirPollutionStringForecast;
-        DynamicJsonDocument jsonResponseAirPollutionForecast(1024);
-        snprintf(url_airPollution, sizeof(url_airPollution), "%s/data/2.5/air_pollution/forecast?appid=%s&lat=%s&lon=%s&lang=%s&units=%s&mode=json", weather_url, weather_apikey, weather_lat, weather_long, weather_lang, weather_unit);
-        http_request(url_airPollution, responseAirPollutionCodeForecast, responseAirPollutionStringForecast);
-        if (responseAirPollutionCodeForecast > 0) {
-            StaticJsonDocument<200> filter;
+        if (responseCode > 0) {
+            JsonDocument jsonResponse; // Document temporaire pour le parsing du flux complet
+            JsonDocument filter;       // Nouveau système de filtre V7
+            
             filter["list"][0]["dt"] = true; 
             filter["list"][0]["main"]["aqi"] = true;
-            deserializeJson(jsonResponseAirPollutionForecast, responseAirPollutionStringForecast, DeserializationOption::Filter(filter)); // Dereference le pointeur ici
-            // Boucle pour passer les données AirPollution en tableau associatif avec la date
-            JsonArray resultArray = jsonResponseAirPollutionForecast["list"];
-            for (size_t t = 0; t < resultArray.size(); t++) {
-              // Récupérez les informations de chaque analyse
-              String dtAnalyse = resultArray[t]["dt"]; //Utilisation d'une string car je ne sais pas faire autrement
-              // Créez un objet imbriqué pour chaque pièce dans jsonCalculatedAirPollutionForecast
-              JsonObject analyse = (*jsonCalculatedAirPollutionForecast).createNestedObject(dtAnalyse);
-              analyse["aqi"] = resultArray[t]["main"]["aqi"];
+
+            DeserializationError error = deserializeJson(jsonResponse, responseString, DeserializationOption::Filter(filter));
+            
+            if (!error) {
+                docAirForecast.clear(); // On vide les prévisions calculées précédentes
+                
+                JsonArray resultArray = jsonResponse["list"];
+                for (JsonObject item : resultArray) {
+                    // Utilisation du timestamp (dt) comme clé de l'objet
+                    String dtAnalyse = item["dt"].as<String>();
+                    
+                    // Syntaxe V7 pour créer l'entrée
+                    docAirForecast[dtAnalyse]["aqi"] = item["main"]["aqi"];
+                }
+                docAirForecast.shrinkToFit();
+            } else {
+                return false;
             }
-            //deserializeJson(*jsonResponseAirPollutionForecast, responseAirPollutionCodeForecast); // Dereference le pointeur ici
-            //(*jsonResponseAirPollutionForecast).shrinkToFit();
         } else {
-          return false;
+            return false;
         }
 
         return true;
     }
 
     int get_airPollution(const char* element = "current", int dt = 0) {
-      int buffer;
-      if ( element == "forecast" ) {
-        String dtAnalyse = String(dt);
-        buffer = (*jsonCalculatedAirPollutionForecast)[dtAnalyse]["aqi"];
-      }
-      else 
-      {
-        buffer = (*jsonResponseAirPollutionCurrent)["list"][0]["main"]["aqi"];
-      }
-      //Serial.println(buffer);
-      return buffer;
+        if (strcmp(element, "forecast") == 0) {
+            String dtKey = String(dt);
+            // On vérifie si la prévision existe pour ce timestamp
+            return docAirForecast[dtKey]["aqi"] | 0;
+        } else {
+            return docAirCurrent["list"][0]["main"]["aqi"] | 0; // | 0 est une valeur par défaut si absent
+        }
     }
 };

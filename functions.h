@@ -1,7 +1,3 @@
-#include <WiFiClient.h>
-//#include <WiFiClientSecure.h>
-#include <HTTPClient.h>
-
 void http_request(String url, int & responseCode, String & responseString, String header[] = nullptr) {
 
   HTTPClient http;
@@ -54,28 +50,16 @@ void print_wakeup_reason() {
   }
 }
 
-template <typename T>
-bool tryRefresh(const String& name, T& obj, bool (T::*refreshFunc)()) {
-//bool tryRefresh(String name, bool (*refreshFunc)()) {
-    for (int attempt = 1; attempt <= maxRetries; attempt++) {
-        if ((obj.*refreshFunc)()) {
-            Serial.print("> ");
-            Serial.print(name);
-            Serial.println(" : Données rafraîchies avec succès !");
-            return true;
-        } else {
-            Serial.print("> ");
-            Serial.print(name);
-            Serial.print(" : Tentative ");
-            Serial.print(attempt);
-            Serial.println(" échouée, nouvel essai...");
-        }
-        delay(retryPause); // Pause de 5s entre chaque tentative
+int tryRefresh(const String& name, std::function<bool()> updateFunc) {
+  for (int attempt = 1; attempt <= maxRetries; attempt++) {
+    if (updateFunc()) { // On exécute la fonction passée en paramètre
+      Serial.printf("> %s : Succès (Essai %d)\n", name.c_str(), attempt);
+      return true;
     }
-    Serial.print("> ");
-    Serial.print(name);
-    Serial.println(" : Échec du rafraîchissement des données après 5 tentatives.");
-    return false;
+    Serial.printf("> %s : Échec tentative %d/%d\n", name.c_str(), attempt, maxRetries);
+    delay(retryPause);
+  }
+  return false;
 }
 
 
@@ -95,4 +79,31 @@ time_t convertToEpoch(const char* dateStr) {
   //Serial.printf("%s - %ld \n", dateStr, (long)epoch);
   
   return epoch;
+}
+
+const char* get_dateJourLettre(struct tm *timeinfo) {
+    static char buffer[60];
+    
+    const char* days[] = {"dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"};
+    const char* months[] = {"janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"};
+
+    snprintf(buffer, sizeof(buffer), "%s %d %s", days[timeinfo->tm_wday], timeinfo->tm_mday, months[timeinfo->tm_mon]);
+
+    return buffer;
+}
+
+const char* get_dateHeure(struct tm *timeinfo) {
+        static char buffer[50];
+
+        strftime(buffer, sizeof(buffer), "Dernière mise à jour : %d/%m %H:%M", timeinfo);
+
+        return buffer;
+    }
+
+const char* get_dateCalendar(struct tm *timeinfo) {
+        static char buffer[10];
+
+        strftime(buffer, sizeof(buffer), "%m%d", timeinfo);
+
+        return buffer;
 }
